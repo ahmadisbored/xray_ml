@@ -7,6 +7,7 @@ import pydicom
 from PIL import Image
 import cv2
 import os
+from dirpath import *
 
 FINDINGS = []
 
@@ -20,23 +21,23 @@ def dicom_to_jpeg(file_path, file_name,finding):
     scaled_image = np.uint8(scaled_image)
     final_image = Image.fromarray(scaled_image)
     try:
-        final_image.save(f'C:/Users/almaa/Desktop/med_img_ai/ml_jpegs/{finding}/{file_name}.jpg')
+        final_image.save(f'{desktop_path}med_img_ai/ml_jpegs/{finding}/{file_name}.jpg')
     except:
-        os.mkdir(f'C:/Users/almaa/Desktop/med_img_ai/ml_jpegs/{finding}')
-        final_image.save(f'C:/Users/almaa/Desktop/med_img_ai/ml_jpegs/{finding}/{file_name}.jpg')
+        os.mkdir(f'{desktop_path}med_img_ai/ml_jpegs/{finding}')
+        final_image.save(f'{desktop_path}med_img_ai/ml_jpegs/{finding}/{file_name}.jpg')
 
 def dicom_to_jpeg_sort():
     for finding in FINDINGS:
-        dir_path = f'C:/Users/almaa/Desktop/med_img_ai/ml_imgs/{finding}'
+        dir_path = f'{desktop_path}med_img_ai/ml_imgs/{finding}'
         for root, dirs, files in os.walk(dir_path):
             for file in files:
                 print(file)
-                file_path = f'C:/Users/almaa/Desktop/med_img_ai/ml_imgs/{finding}/{file}'
+                file_path = f'{desktop_path}med_img_ai/ml_imgs/{finding}/{file}'
                 file_name = str(file[:-6])
                 dicom_to_jpeg(file_path, file_name, finding)
 
 def read_plot_dataset(num):
-    read_file = open('C:/Users/almaa/Desktop/med_img_ai/storedarr.txt', 'rb')
+    read_file = open('{desktop_path}med_img_ai/storedarr.txt', 'rb')
     try:
         dataset = pickle.load(read_file)
     except:
@@ -52,11 +53,11 @@ def create_jpeg_dataset():
 
     for finding in FINDINGS:
         print(finding)
-        dir_path = f'C:/Users/almaa/Desktop/med_img_ai/ml_jpegs/{finding}'
+        dir_path = f'{desktop_path}med_img_ai/ml_jpegs/{finding}'
         finding_num = FINDINGS.index(finding)
         if finding == 'No_finding':
             for file in os.listdir(dir_path):
-                img = cv2.imread(f'C:/Users/almaa/Desktop/med_img_ai/ml_jpegs/{finding}/{file}', 0)
+                img = cv2.imread(f'{desktop_path}med_img_ai/ml_jpegs/{finding}/{file}', 0)
                 new_img = cv2.resize(img, (800,800))
                 new_img = new_img / 255
                 num += 1
@@ -66,13 +67,13 @@ def create_jpeg_dataset():
                     break
         else:
             for file in os.listdir(dir_path):
-                img = cv2.imread(f'C:/Users/almaa/Desktop/med_img_ai/ml_jpegs/{finding}/{file}', 0)
+                img = cv2.imread(f'{desktop_path}med_img_ai/ml_jpegs/{finding}/{file}', 0)
                 new_img = cv2.resize(img, (800,800))
                 new_img = new_img / 255
                 data.append([new_img, finding_num])
 
     random.shuffle(data)
-    write_file = open('C:/Users/almaa/Desktop/med_img_ai/storedarr.txt', 'wb')
+    write_file = open('{desktop_path}med_img_ai/storedarr.txt', 'wb')
     pickle.dump(data, write_file)
     write_file.close()
 
