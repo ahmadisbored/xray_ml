@@ -1,5 +1,4 @@
 import tensorflow as tf
-import tensorflow_io as tfio
 import matplotlib.pyplot as plt
 import numpy as np
 import random
@@ -9,7 +8,7 @@ from PIL import Image
 import cv2
 import os
 
-FINDINGS = ['Disc_space_narrowing', 'Foraminal_stenosis', 'No_finding', 'Osteophytes', 'Other_lesions', 'Spondylolysthesis', 'Surgical_implant', 'Vertebral_collapse']
+FINDINGS = []
 
 data = []
 
@@ -35,29 +34,6 @@ def dicom_to_jpeg_sort():
                 file_path = f'C:/Users/almaa/Desktop/med_img_ai/ml_imgs/{finding}/{file}'
                 file_name = str(file[:-6])
                 dicom_to_jpeg(file_path, file_name, finding)
-
-def create_dicom_dataset():
-    for finding in FINDINGS:
-        num = 0
-        path = f'C:/Users/almaa/Desktop/med_img_ai/ml_imgs/{finding}'
-        print(path)
-        finding_ind = FINDINGS.index(finding)
-        for dicom in os.listdir(path):
-            if num < 7:
-                try:
-                    dicom_bytes = tf.io.read_file(path + f'/{dicom}')
-                    dicom = tfio.image.decode_dicom_image(dicom_bytes, dtype = tf.uint16)
-                    processed_dicom = np.squeeze(dicom.numpy())
-                    processed_dicom = processed_dicom / 65536
-                    data.append([processed_dicom, finding_ind])
-                    num+=1
-                except:
-                    pass
-
-    random.shuffle(data)
-    write_file = open('C:/Users/almaa/Desktop/med_img_ai/storedarr.txt', 'wb')
-    pickle.dump(data, write_file)
-    write_file.close()
 
 def read_plot_dataset(num):
     read_file = open('C:/Users/almaa/Desktop/med_img_ai/storedarr.txt', 'rb')
@@ -102,51 +78,79 @@ def create_jpeg_dataset():
 
 def create_cnn():
 
-    X_train = []
-    Y_train = []
-    X_test = []
-    Y_test = []
+    size = 224
+    color_channels = 1
+    color_mode = 'grayscale'
+    batch_size = 32
 
-    read_file = open('C:/Users/almaa/Desktop/med_img_ai/storedarr.txt', 'rb')
-    try:
-        dataset = pickle.load(read_file)
-        print(len(dataset))
-    except:
-        pass
-    
-    for i in range(0,1031):
-        X_train.append(dataset[i][0])
-        Y_train.append(dataset[i][1])
-    
-    for i in range(1031, 1375):
-        X_test.append(dataset[i][0])
-        Y_test.append(dataset[i][1])
+    image_data_generator = tf.keras.preprocessing.image.ImageDataGenerator(rescale=1/255)
+    train_image_generator = image_data_generator.flow_from_directory('chest-xray-imgs/train/model', seed=123, color_mode=color_mode, batch_size=batch_size,class_mode='binary', target_size=(size,size))
+    test_image_generator = image_data_generator.flow_from_directory('chest-xray-imgs/test/model', seed=123, color_mode=color_mode, batch_size=batch_size,class_mode='binary', target_size=(size,size))
+    val_image_generator = image_data_generator.flow_from_directory('chest-xray-imgs/val/model', seed=123, color_mode=color_mode, batch_size=batch_size,class_mode='binary', target_size=(size,size))
 
-    X_train = np.array(X_train).reshape(-1,800,800,1)
-    Y_train = np.array(Y_train)
-    X_test = np.array(X_test).reshape(-1,800,800,1)
-    Y_test = np.array(Y_test)
+    es = tf.keras.callbacks.EarlyStopping(monitor='val_accuracy', min_delta=0.01, patience=10, verbose=1)
+    model_checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath='cxray-nf-mass.h5', monitor='val_accuracy', save_best_only=True, verbose=1)
 
     model = tf.keras.Sequential()
-    model.add(tf.keras.layers.Conv2D(32, (3,3), activation = 'relu', input_shape = X_train.shape[1:]))
+
+    model.add(tf.keras.layers.Conv2D(32, (3,3), activation = 'relu', input_shape = (size,size,color_channels), padding='same'))
+    model.add(tf.keras.layers.Conv2D(32, (3,3), activation = 'relu', input_shape = (size,size,color_channels), padding='same'))  
     model.add(tf.keras.layers.MaxPooling2D((2,2)))
-    model.add(tf.keras.layers.Conv2D(64, (3,3), activation = 'relu', input_shape = X_train.shape[1:]))
+    model.add(tf.keras.layers.BatchNormalization())
+    model.add(tf.keras.layers.Conv2D(64, (3,3), activation = 'relu', input_shape = (size,size,color_channels), padding='same'))
+    model.add(tf.keras.layers.Conv2D(64, (3,3), activation = 'relu', input_shape = (size,size,color_channels), padding='same'))
     model.add(tf.keras.layers.MaxPooling2D((2,2)))
-    model.add(tf.keras.layers.Conv2D(64, (3,3), activation = 'relu', input_shape = X_train.shape[1:]))
+    model.add(tf.keras.layers.BatchNormalization())
+    model.add(tf.keras.layers.Conv2D(64, (3,3), activation = 'relu', input_shape = (size,size,color_channels), padding='same'))
+    model.add(tf.keras.layers.Conv2D(64, (3,3), activation = 'relu', input_shape = (size,size,color_channels), padding='same'))
     model.add(tf.keras.layers.MaxPooling2D((2,2)))
+    model.add(tf.keras.layers.BatchNormalization())
+    model.add(tf.keras.layers.Conv2D(64, (3,3), activation = 'relu', input_shape = (size,size,color_channels), padding='same'))
+    model.add(tf.keras.layers.Conv2D(64, (3,3), activation = 'relu', input_shape = (size,size,color_channels), padding='same'))
+    model.add(tf.keras.layers.MaxPooling2D((2,2)))
+    # model.add(tf.keras.layers.BatchNormalization())
+    # model.add(tf.keras.layers.Conv2D(64, (3,3), activation = 'relu', input_shape = (size,size,color_channels), padding='same'))
+    # model.add(tf.keras.layers.Conv2D(64, (3,3), activation = 'relu', input_shape = (size,size,color_channels), padding='same'))
+    # model.add(tf.keras.layers.MaxPooling2D((2,2)))
+    # model.add(tf.keras.layers.BatchNormalization())
+    # model.add(tf.keras.layers.Conv2D(64, (3,3), activation = 'relu', input_shape = (size,size,color_channels), padding='same'))
+    # model.add(tf.keras.layers.Conv2D(64, (3,3), activation = 'relu', input_shape = (size,size,color_channels), padding='same'))
+    # model.add(tf.keras.layers.MaxPooling2D((2,2)))
+    # model.add(tf.keras.layers.BatchNormalization())
+    # model.add(tf.keras.layers.Conv2D(64, (3,3), activation = 'relu', input_shape = (size,size,color_channels), padding='same'))
+    # model.add(tf.keras.layers.Conv2D(64, (3,3), activation = 'relu', input_shape = (size,size,color_channels), padding='same'))
+    # model.add(tf.keras.layers.MaxPooling2D((2,2)))
     model.add(tf.keras.layers.Flatten())
-    model.add(tf.keras.layers.Dense(64, activation = 'relu'))
-    model.add(tf.keras.layers.Dense(8, activation = 'softmax'))
+    model.add(tf.keras.layers.Dense(32, activation = 'relu'))
+    model.add(tf.keras.layers.Dense(32, activation = 'relu'))
+    model.add(tf.keras.layers.Dropout(rate=0.5))
+    # model.add(tf.keras.layers.Dense(32, activation = 'relu'))
+    # model.add(tf.keras.layers.Dense(32, activation = 'relu'))
+    model.add(tf.keras.layers.Dense(1, activation = 'sigmoid'))
 
-    model.compile(optimizer="Adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"])
+    model.compile(optimizer="nadam", loss="binary_crossentropy", metrics=["accuracy"])
 
-    model.fit(X_train, Y_train, epochs = 10)
+    model.fit(train_image_generator, epochs = 12, validation_data=val_image_generator, callbacks=[es, model_checkpoint])
 
-    model.evaluate(X_test, Y_test)
+    model.evaluate(test_image_generator)
 
-    model.save('preliminary_model.h5')
+def load_model():
 
+    size = 224
+    color_mode = 'grayscale'
+    batch_size = 32
+    
+    image_data_generator = tf.keras.preprocessing.image.ImageDataGenerator(rescale=1/255)
+    test_image_generator = image_data_generator.flow_from_directory('chest-xray-imgs/test/model', seed=123, color_mode=color_mode, batch_size=batch_size,class_mode='binary', target_size=(size,size))
 
+    x = test_image_generator.next()
 
+    for i in range(batch_size):
+        model = tf.keras.models.load_model('cxray-nf-mass376p.h5')
+        ans = model.predict(x[0])
+        print(ans[i])
+        print(x[1][i])
+        plt.imshow(x[0][i])
+        plt.show()
 
-
+load_model()
