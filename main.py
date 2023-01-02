@@ -1,5 +1,6 @@
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import pandas as pd
 import numpy as np
 import random
 import pickle
@@ -14,39 +15,46 @@ FINDINGS = []
 data = []
 
 
-def dicom_to_jpeg(file_path, file_name,finding):
-    ds = pydicom.dcmread(file_path)
+def dicom_to_jpeg(og_file_path, target_file_path, file_name):
+    ds = pydicom.dcmread(og_file_path)
     new_image = ds.pixel_array.astype(float)
     scaled_image = (np.maximum(new_image, 0) / new_image.max()) * 255.0
     scaled_image = np.uint8(scaled_image)
     final_image = Image.fromarray(scaled_image)
     try:
-        final_image.save(f'{desktop_path}med_img_ai/ml_jpegs/{finding}/{file_name}.jpg')
+        final_image.save(f'{target_file_path}/{file_name}.jpg')
     except:
-        os.mkdir(f'{desktop_path}med_img_ai/ml_jpegs/{finding}')
-        final_image.save(f'{desktop_path}med_img_ai/ml_jpegs/{finding}/{file_name}.jpg')
+        print('Error in temporary target file path.')
 
-def dicom_to_jpeg_sort():
-    for finding in FINDINGS:
-        dir_path = f'{desktop_path}med_img_ai/ml_imgs/{finding}'
-        for root, dirs, files in os.walk(dir_path):
-            for file in files:
-                print(file)
-                file_path = f'{desktop_path}med_img_ai/ml_imgs/{finding}/{file}'
-                file_name = str(file[:-6])
-                dicom_to_jpeg(file_path, file_name, finding)
+def dicom_to_ml_model(og_file_path, target_file_path, temp_file_path, csv_file_name, csv_file_image_id_column, csv_file_finding_column):
 
-def read_plot_dataset(num):
-    read_file = open('{desktop_path}med_img_ai/storedarr.txt', 'rb')
-    try:
-        dataset = pickle.load(read_file)
-    except:
-        pass
-    read_file.close()
-    plt.imshow(dataset[num][0], cmap='gray')
-    plt.title(FINDINGS[dataset[num][1]])
-    plt.show()
+    df = pd.read_csv(csv_file_name)[csv_file_image_id_column][csv_file_finding_column]
+    for root, dirs, files in os.walk(og_file_path):
+        for file in files:
+            x = df.loc[df[csv_file_image_id_column] == file]
+            try:
+                file_name = x[csv_file_image_id_column].item()
+                finding = x[csv_file_finding_column].item()
+                for i in finding:
+                    if i == '|':
+                        finding = finding.replace(i, ',')
+                    if i == ' ':
+                        finding = finding.replace(i, '_')
+                try:
+                    dicom_file_path = og_file_path + '/' + file[:-6]
+                    dicom_to_jpeg(dicom_file_path, temp_file_path)
+                    os.replace(f'{temp_file_path}/{file[:-6]}.jpg', f'{target_file_path}/{finding}/{file[:-6]}.jpg')
+                    print(f'{file_name} with {finding} moved')
+                except:
+                    os.mkdir(f'{target_file_path}/{finding}')
+                    os.replace(f'{temp_file_path}/{file[:-6]}.jpg', f'{target_file_path}/{finding}/{file[:-6]}.jpg')
+                    print(f'{file_name} with {finding} moved')
+                
+            except:
+                print('File not found.')
+    
 
+    
 def create_jpeg_dataset():
 
     num = 0
@@ -73,7 +81,7 @@ def create_jpeg_dataset():
                 data.append([new_img, finding_num])
 
     random.shuffle(data)
-    write_file = open('{desktop_path}med_img_ai/storedarr.txt', 'wb')
+    write_file = open(f'{desktop_path}med_img_ai/storedarr.txt', 'wb')
     pickle.dump(data, write_file)
     write_file.close()
 
