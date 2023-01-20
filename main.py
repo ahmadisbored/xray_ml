@@ -6,7 +6,11 @@ import random
 import pickle
 import pydicom
 from PIL import Image
+import nibabel as nib
 import cv2
+from tkinter import Tk
+from tkinter.filedialog import askdirectory
+from tkinter.simpledialog import askstring
 import os
 from dirpath import *
 
@@ -15,44 +19,62 @@ FINDINGS = []
 data = []
 
 
-def dicom_to_jpeg(og_file_path, target_file_path, file_name):
-    ds = pydicom.dcmread(og_file_path)
+def dicom_to_jpeg(file_path, file_name, save_dir, folder_name):
+    ds = pydicom.dcmread(file_path)
     new_image = ds.pixel_array.astype(float)
     scaled_image = (np.maximum(new_image, 0) / new_image.max()) * 255.0
     scaled_image = np.uint8(scaled_image)
     final_image = Image.fromarray(scaled_image)
     try:
-        final_image.save(f'{target_file_path}/{file_name}.jpg')
+        final_image.save(os.path.join(save_dir, folder_name, (str(file_name[:-6]) + '.jpg')))
+        print((str(file_name[:-6]) + '.jpg') + f' saved to {os.path.join(save_dir, folder_name)}')
     except:
-        print('Error in temporary target file path.')
+        os.makedirs(os.path.join(save_dir, folder_name))
+        final_image.save(os.path.join(save_dir, folder_name, (str(file_name[:-6]) + '.jpg')))
+        print((str(file_name[:-6]) + '.jpg') + f' saved to {os.path.join(save_dir, folder_name)}')
 
-def dicom_to_ml_model(og_file_path, target_file_path, temp_file_path, csv_file_name, csv_file_image_id_column, csv_file_finding_column):
 
-    df = pd.read_csv(csv_file_name)[csv_file_image_id_column][csv_file_finding_column]
-    for root, dirs, files in os.walk(og_file_path):
-        for file in files:
-            x = df.loc[df[csv_file_image_id_column] == file]
-            try:
-                file_name = x[csv_file_image_id_column].item()
-                finding = x[csv_file_finding_column].item()
-                for i in finding:
-                    if i == '|':
-                        finding = finding.replace(i, ',')
-                    if i == ' ':
-                        finding = finding.replace(i, '_')
-                try:
-                    dicom_file_path = og_file_path + '/' + file[:-6]
-                    dicom_to_jpeg(dicom_file_path, temp_file_path)
-                    os.replace(f'{temp_file_path}/{file[:-6]}.jpg', f'{target_file_path}/{finding}/{file[:-6]}.jpg')
-                    print(f'{file_name} with {finding} moved')
-                except:
-                    os.mkdir(f'{target_file_path}/{finding}')
-                    os.replace(f'{temp_file_path}/{file[:-6]}.jpg', f'{target_file_path}/{finding}/{file[:-6]}.jpg')
-                    print(f'{file_name} with {finding} moved')
-                
-            except:
-                print('File not found.')
-    
+def dicom_path_to_ml_model(dicom_folder_file_path, train_split, test_split, val_split):
+    save_dir = askdirectory(title='Select Save Directory')
+    model_folder_name = askstring(title="DICOM->ML", prompt="Name your model folder (do not use the name of a pre-existing folder):")
+    for file in os.listdir(dicom_folder_file_path):
+        dicom_to_jpeg(os.path.join(dicom_folder_file_path,file), file, save_dir, model_folder_name)
+    final_dir = os.path.join(save_dir, model_folder_name)
+    train_count = int(len(os.listdir(final_dir))*float(train_split))
+    print(train_count)
+    print(len(os.listdir(final_dir)))
+    test_count = int(len(os.listdir(final_dir))*float(test_split))
+    val_count = int(len(os.listdir(final_dir))*float(val_split))
+    os.makedirs(os.path.join(final_dir, 'train'))
+    os.makedirs(os.path.join(final_dir, 'test'))
+    os.makedirs(os.path.join(final_dir, 'val'))
+    num = 0
+    for file in os.listdir(final_dir):
+        if num < train_count:
+            os.replace(os.path.join(final_dir, file), os.path.join(final_dir,'train',file))
+            num+=1
+            print(f'File number {num} moved to training folder')
+        elif num < train_count + test_count:
+            os.replace(os.path.join(final_dir, file), os.path.join(final_dir,'test',file))
+            num+=1
+            print(f'File number {num} moved to testing folder')
+        elif num < train_count + test_count + val_count:
+            os.replace(os.path.join(final_dir, file), os.path.join(final_dir,'val',file))
+            num+=1
+            print(f'File number {num} moved to validation folder')
+
+def dicom_to_ml():
+    dicom_dir = askdirectory(title='Select DICOM Directory')
+    train_split = askstring(title="Training Folder", prompt="Input train split (between 0 and 1):")
+    test_split = askstring(title="Testing Folder", prompt="Input test split (between 0 and 1):")
+    val_split = askstring(title="Validation Folder", prompt="Input validation split (between 0 and 1):")
+    dicom_path_to_ml_model(dicom_dir, train_split, test_split, val_split)
+
+def read_nii():
+    label = nib.load('image123.nii')
+    image = label.get_data()
+    plt.imshow(image)
+    plt.show()
 
     
 def create_jpeg_dataset():
@@ -162,4 +184,4 @@ def load_model():
         plt.imshow(x[0][i])
         plt.show()
 
-load_model()
+dicom_to_ml()
